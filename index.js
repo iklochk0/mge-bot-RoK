@@ -1,8 +1,10 @@
 const { Client, GatewayIntentBits, Partials, Events, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 
+require('dotenv').config();
+
 // Конфігураційні константи
-const TOKEN = 'MTM1NTY5NzM2MDk0ODI5Nzc4OA.GbydQY.lV-IQA4VJke-LxZlMUYr9V9TzPThAX8mQQysn8';               // Токен бота
-const ADMIN_CHANNEL_ID = '1354975682366537822';   // ID адмін-каналу для готових заявок
+const TOKEN = process.env.TOKEN; // Токен бота
+const ADMIN_CHANNEL_ID = process.env.ADMIN_CHANNEL_ID;   // ID адмін-каналу для готових заявок
 
 // Створюємо клієнт Discord з потрібними правами (інтентами) для роботи з повідомленнями і DM
 const client = new Client({
