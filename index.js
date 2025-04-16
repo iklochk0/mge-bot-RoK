@@ -265,8 +265,8 @@ client.on(Events.InteractionCreate, async interaction => {
                 { name: "Desired Rank", value: answers.place || "N/A", inline: true },
                 { name: "Golden Heads", value: answers.heads || "N/A", inline: true },
                 { name: "Can Expertise?", value: answers.expertise || "N/A", inline: true },
-                { name: "Accepts Rules?", value: answers.rules || "N/A", inline: true }
-                { name: "Wants MGE if given lower rank?", value: answers.altRank || "N/A", inline: true },
+                { name: "Accepts Rules?", value: answers.rules || "N/A", inline: true },
+                { name: "Wants MGE if given lower rank?", value: answers.altRank || "N/A", inline: true }
             );
             // Інформація про користувача
             //embed.addFields({ name: "User ID", value: interaction.user.id, inline: false });
