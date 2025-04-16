@@ -39,6 +39,7 @@ const localeTexts = {
         askHeads: "5️⃣ Скільки у вас зараз універсальних золотих голів (легендарних скульптур)?",
         askExpertise: "6️⃣ Чи зможете ви зробити цього командира експертом (максимально прокачати)? Відповідь Так/Ні.",
         askRules: "7️⃣ Чи приймаєте ви умови, що якщо перевищите свій ліміт і займете чужe місце, будуть штрафи та можливе обнулення акаунта? (Так/Ні)",
+        askAltRank: "8️⃣ Якщо вам дадуть нижчий ранг, ніж ви хочете (наприклад, 10 місце) — вам усе одно цікаво брати участь у цьому MGE? (Так/Ні)",
         invalidImage: "❗ Будь ласка, надішліть **зображення** (скріншот) для цього питання.",
         invalidText: "❗ Будь ласка, надішліть відповідь текстом (це питання не потребує зображення).",
         timeoutMsg: "⚠️ Час на відповіді вичерпано. Сесію завершено. Якщо хочете спробувати знову – використайте команду /apply заново.",
@@ -57,6 +58,7 @@ const localeTexts = {
         askHeads: "5️⃣ How many universal **gold heads** (legendary sculptures) do you have right now?",
         askExpertise: "6️⃣ Will you be able to max **expertise** this commander? (Yes/No answer)",
         askRules: "7️⃣ Do you accept that if you exceed your limit and take someone else's spot, you will get penalties and possibly be zeroed? (Yes/No)",
+        askAltRank: "8️⃣ If you're offered a lower rank than requested (e.g. rank 10), do you still want this MGE spot? (Yes/No)",
         invalidImage: "❗ Please send an **image** (screenshot) for this question.",
         invalidText: "❗ Please answer with text (no image is needed for this question).",
         timeoutMsg: "⚠️ Time is up. Session ended due to inactivity. Please run /apply again if you want to try again.",
@@ -117,20 +119,20 @@ client.on(Events.InteractionCreate, async interaction => {
             }
             // Якщо хочемо явно запитувати мову, можна раскоментувати наступний блок:
             
-            await dmChannel.send(localeTexts.en.chooseLang + "\n" + localeTexts.ua.chooseLang);
-            const langReply = await dmChannel.awaitMessages({
-                filter: m => m.author.id === userId,
-                max: 1,
-                time: 30000
-            });
-            if (langReply.size) {
-                const choice = langReply.first().content.trim();
-                if (choice === '2' || choice === 'Українська' || choice.toLowerCase() === 'ukrainian') {
-                    lang = 'ua';
-                } else {
-                    lang = 'en';
-                }
-            }
+            //await dmChannel.send(localeTexts.en.chooseLang + "\n" + localeTexts.ua.chooseLang);
+            //const langReply = await dmChannel.awaitMessages({
+            //    filter: m => m.author.id === userId,
+            //    max: 1,
+            //    time: 30000
+            //});
+            //if (langReply.size) {
+            //    const choice = langReply.first().content.trim();
+            //    if (choice === '2' || choice === 'Українська' || choice.toLowerCase() === 'ukrainian') {
+            //        lang = 'ua';
+            //    } else {
+            //        lang = 'en';
+            //    }
+            //}
             
             // Відправляємо стартове повідомлення і перше питання
             await interaction.editReply({ content: (lang === 'ua' ? "✅ Починаємо заповнення анкети! Повідомлення надіслано вам в приват." : "✅ Starting your application! I've sent you a DM.") });
