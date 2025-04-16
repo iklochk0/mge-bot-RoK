@@ -231,6 +231,10 @@ client.on(Events.InteractionCreate, async interaction => {
             response = await askQuestion(localeTexts[lang].askRules, false);
             if (!response) { throw { code: 101, message: "User did not respond to rules acceptance." }; }
             answers.rules = response.content.trim();
+            // 7. Якщо буде інше місце, це підійде? (Yes/No)
+            response = await askQuestion(localeTexts[lang].askAltRank, false);
+            if (!response) { throw { code: 101, message: "User did not respond to alternate rank question." }; }
+            answers.altRank = response.content.trim();
 
             // Якщо всі відповіді зібрані успішно:
             logEvent("201", `Collected all answers from user ${userId}. Preparing embed...`);
@@ -262,9 +266,10 @@ client.on(Events.InteractionCreate, async interaction => {
                 { name: "Golden Heads", value: answers.heads || "N/A", inline: true },
                 { name: "Can Expertise?", value: answers.expertise || "N/A", inline: true },
                 { name: "Accepts Rules?", value: answers.rules || "N/A", inline: true }
+                { name: "Wants MGE if given lower rank?", value: answers.altRank || "N/A", inline: true },
             );
             // Інформація про користувача
-            embed.addFields({ name: "User ID", value: interaction.user.id, inline: false });
+            //embed.addFields({ name: "User ID", value: interaction.user.id, inline: false });
             embed.setFooter({ text: `User: ${interaction.user.tag}` });
 
             // Надсилаємо Embed в адміністративний канал
