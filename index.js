@@ -84,10 +84,10 @@ client.once(Events.ClientReady, async () => {
 
     try {
         await guild.commands.create({
-            name: 'apply',
+            name: 'mge',
             description: 'Start an MGE application.'
         });
-        console.log('✅ Slash-команда /apply успішно зареєстрована на сервері!');
+        console.log('✅ Slash-команда /mge успішно зареєстрована на сервері!');
     } catch (error) {
         console.error('❌ Помилка реєстрації команди:', error);
     }
@@ -96,7 +96,7 @@ client.once(Events.ClientReady, async () => {
 // Обробка взаємодій (slash-команд)
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName === 'apply') {
+    if (interaction.commandName === 'mge') {
         const userId = interaction.user.id;
         // Перевірка активної сесії для цього користувача
         if (activeSessions.has(userId)) {
