@@ -71,10 +71,8 @@ const localeTexts = {
 // Головна подія при запуску бота
 client.once(Events.ClientReady, async () => {
     console.log(`Bot logged in as ${client.user.tag}`);
-    // Очистити глобальні команди
-    await client.application.commands.set([]);
 
-    const guildId = '1354546683643428864'; 
+    const guildId = '1354546683643428864'; // твій сервер
     const guild = client.guilds.cache.get(guildId);
 
     if (!guild) {
@@ -82,16 +80,38 @@ client.once(Events.ClientReady, async () => {
         return;
     }
 
+    // Очищення глобальних команд (опційно)
+    await client.application.commands.fetch();
+
+    // Отримуємо всі команди сервера
+    const commands = await guild.commands.fetch();
+
+    // Знаходимо команду apply
+    const applyCommand = commands.find(cmd => cmd.name === 'apply');
+
+    if (applyCommand) {
+        try {
+            await guild.commands.delete(applyCommand.id);
+            console.log('✅ Команда /apply успішно видалена!');
+        } catch (error) {
+            console.error('❌ Помилка при видаленні команди /apply:', error);
+        }
+    } else {
+        console.log('ℹ️ Команда /apply не знайдена на сервері.');
+    }
+
+    // Тепер реєструємо нову команду /mge
     try {
         await guild.commands.create({
             name: 'mge',
             description: 'Start an MGE application.'
         });
-        console.log('✅ Slash-команда /mge успішно зареєстрована на сервері!');
+        console.log('✅ Slash-команда /mge успішно зареєстрована!');
     } catch (error) {
-        console.error('❌ Помилка реєстрації команди:', error);
+        console.error('❌ Помилка при реєстрації /mge:', error);
     }
 });
+
 
 // Обробка взаємодій (slash-команд)
 client.on(Events.InteractionCreate, async interaction => {
