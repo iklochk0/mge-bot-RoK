@@ -122,7 +122,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         if (interaction.channelId !== allowedChannelId) {
             await interaction.reply({ 
-                content: '❌ This command can only be used in <#${allowedChannelId}> channel.', 
+                content: `❌ This command can only be used in <#${allowedChannelId}> channel.`,
                 ephemeral: true 
             });
             return; // Зупиняємо виконання
