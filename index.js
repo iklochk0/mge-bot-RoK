@@ -118,6 +118,15 @@ client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName === 'mge') {
         const userId = interaction.user.id;
+        const allowedChannelId = '123456789012345678'; // тут встав свій ID каналу
+
+        if (interaction.channelId !== allowedChannelId) {
+            await interaction.reply({ 
+                content: '❌ This command can only be used in <#1354975609738104944> channel.', 
+                ephemeral: true 
+            });
+            return; // Зупиняємо виконання
+        }
         // Перевірка активної сесії для цього користувача
         if (activeSessions.has(userId)) {
             // Відповідаємо ephemeral, що сесія вже активна
