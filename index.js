@@ -2,6 +2,13 @@
 // Admin posts ONE panel in ONE channel with /mgepanel.
 // Users click button -> DM flow starts.
 // Cooldown: user can start only once per 5 minutes (and cannot run parallel sessions).
+// Added:
+//  - Per-step timeout codes (101..114) + admin timeout embed.
+//  - Conditional questions:
+//      * Crystal Academy spend? If yes -> ask details.
+//      * Rank: if TOP-10 (<=10) -> ask "why deserve".
+//      * Pair: if yes -> ask screenshot of pair commander SKILLS.
+//  - Panel is edited if already exists (no spam).
 
 const {
   Client,
@@ -37,6 +44,24 @@ const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const QUESTION_TTL_MS = 5 * 60 * 1000; // auto delete bot messages after 5 minutes
 const TIMEOUT_MS = 5 * 60 * 1000; // wait for each answer up to 5 minutes
 
+// ===== TIMEOUT CODES =====
+const TIMEOUT_CODES = {
+  PROFILE: 101,
+  COMMANDER: 102,
+  EQUIPMENT: 103,
+  PLACE: 104,
+  HIGH_RANK_WHY: 105,
+  VIP: 106,
+  CRYSTAL_DONATE: 107,
+  CRYSTAL_SPEND: 108,
+  HEADS: 109,
+  EXPERTISE: 110,
+  HAS_PAIR: 111,
+  PAIR_SKILLS: 112,
+  RULES: 113,
+  ALTRANK: 114,
+};
+
 // ===== CLIENT =====
 const client = new Client({
   intents: [
@@ -68,15 +93,24 @@ const localeTexts = {
       "2️⃣ Надішліть скріншот командира, якого ви хочете (претендуєте отримати).",
     askEquipment: "3️⃣ Надішліть скріншот вашого спорядження.",
     askPlace: "4️⃣ Яке місце (ранг) у MGE ви хочете зайняти?",
-    askVIP: "4️⃣ Який у вас VIP-рівень? Надішліть, будь ласка, скріншот VIP.",
+    askHighRankWhy:
+      "📌 Ви хочете місце в ТОП-10 (1–10). Напишіть коротко: чому саме це місце і чому ви його заслуговуєте?",
+    askVIP: "5️⃣ Який у вас VIP-рівень? Надішліть, будь ласка, скріншот VIP.",
+    askCrystalDonate: "❄️ Донатите в Кристальну академію під KvK? (Так/Ні)",
+    askCrystalSpend:
+      "❄️ Скільки витрачаєте і на що саме? (наприклад: $5 supply / Crystal Path / Mountain Warfare / F2P тощо)",
     askHeads:
-      "5️⃣ Скільки у вас зараз універсальних золотих голів (легендарних скульптур)?",
+      "6️⃣ Скільки у вас зараз універсальних золотих голів (легендарних скульптур)?",
     askExpertise:
-      "6️⃣ Чи зможете ви зробити цього командира експертом (максимально прокачати)? Відповідь Так/Ні.",
+      "7️⃣ Чи зможете ви зробити цього командира експертом (максимально прокачати)? Відповідь Так/Ні.",
+    askHasPair:
+      "🤝 Чи є у вас пара (другий командир, з яким будете використовувати)? (Так/Ні)",
+    askPairSkills:
+      "🤝 Надішліть скріншот **навичок (Skills)** командира-пари, з яким будете використовувати.",
     askRules:
-      "7️⃣ Чи приймаєте ви умови, що якщо перевищите свій ліміт і займете чужe місце, будуть штрафи та можливе обнулення акаунта? (Так/Ні)",
+      "8️⃣ Чи приймаєте ви умови, що якщо перевищите свій ліміт і займете чуже місце, будуть штрафи та можливе обнулення акаунта? (Так/Ні)",
     askAltRank:
-      "8️⃣ Якщо вам дадуть нижчий ранг, ніж ви хочете (наприклад, 10 місце) — вам усе одно цікаво брати участь у цьому MGE? (Так/Ні)",
+      "9️⃣ Якщо вам дадуть нижчий ранг, ніж ви хочете (наприклад, 11 місце) — вам усе одно цікаво брати участь у цьому MGE? (Так/Ні)",
     invalidImage:
       "❗ Будь ласка, надішліть **зображення** (скріншот) для цього питання.",
     invalidText:
@@ -98,15 +132,24 @@ const localeTexts = {
       "2️⃣ Please send a screenshot of the commander you want (the one you're applying for).",
     askEquipment: "3️⃣ Please send a screenshot of your equipment.",
     askPlace: "4️⃣ What rank/place do you want in the MGE event?",
-    askVIP: "4️⃣ What is your VIP level? Please send a screenshot of your VIP screen.",
+    askHighRankWhy:
+      "📌 You want a TOP-10 rank (1–10). Briefly explain: why this rank and why you deserve it?",
+    askVIP: "5️⃣ What is your VIP level? Please send a screenshot of your VIP screen.",
+    askCrystalDonate: "❄️ Do you spend on the Crystal Academy for KvK? (Yes/No)",
+    askCrystalSpend:
+      "❄️ How much do you spend and on what exactly? (e.g. $5 supply / Crystal Path / Mountain Warfare / F2P, etc.)",
     askHeads:
-      "5️⃣ How many universal **gold heads** (legendary sculptures) do you have right now?",
+      "6️⃣ How many universal **gold heads** (legendary sculptures) do you have right now?",
     askExpertise:
-      "6️⃣ Will you be able to max **expertise** this commander? (Yes/No answer)",
+      "7️⃣ Will you be able to max **expertise** this commander? (Yes/No answer)",
+    askHasPair:
+      "🤝 Do you have a pair (2nd commander you will use together)? (Yes/No)",
+    askPairSkills:
+      "🤝 Please send a screenshot of the **skills (Skills screen)** of your pair commander.",
     askRules:
-      "7️⃣ Do you accept that if you exceed your limit and take someone else's spot, you will get penalties and possibly be zeroed? (Yes/No)",
+      "8️⃣ Do you accept that if you exceed your limit and take someone else's spot, you will get penalties and possibly be zeroed? (Yes/No)",
     askAltRank:
-      "8️⃣ If you're offered a lower rank than requested (e.g. rank 10), do you still want this MGE spot? (Yes/No)",
+      "9️⃣ If you're offered a lower rank than requested (e.g. rank 11) — do you still want this MGE spot? (Yes/No)",
     invalidImage: "❗ Please send an **image** (screenshot) for this question.",
     invalidText: "❗ Please answer with text (no image is needed for this question).",
     timeoutMsg:
@@ -120,7 +163,7 @@ const localeTexts = {
   },
 };
 
-// ===== Permission check for /mgepanel =====
+// ===== Helpers =====
 function isAdminAllowed(interaction) {
   if (ADMIN_ROLE_ID) {
     return Boolean(interaction.member?.roles?.cache?.has(ADMIN_ROLE_ID));
@@ -133,7 +176,6 @@ function isAdminAllowed(interaction) {
   );
 }
 
-// ===== Panel build =====
 function buildPanelMessage() {
   const panelEmbed = new EmbedBuilder()
     .setTitle("🏅 MGE Application")
@@ -153,9 +195,7 @@ function buildPanelMessage() {
   return { embeds: [panelEmbed], components: [row] };
 }
 
-// ===== Find existing panel message to avoid duplicates =====
 async function findExistingPanelMessage(channel) {
-  // scan last 50 messages in allowed panel channel
   const msgs = await channel.messages.fetch({ limit: 50 }).catch(() => null);
   if (!msgs) return null;
 
@@ -168,6 +208,22 @@ async function findExistingPanelMessage(channel) {
     if (hasButton) return msg;
   }
   return null;
+}
+
+function makeTimeoutError(code, stepLabel) {
+  return { code, type: "TIMEOUT", stepLabel, message: `Timeout at step: ${stepLabel}` };
+}
+
+function normalizeYesNo(text) {
+  const t = String(text || "").trim().toLowerCase();
+  if (["так", "да", "y", "yes", "true", "1"].includes(t)) return true;
+  if (["ні", "нет", "no", "n", "false", "0"].includes(t)) return false;
+  return null;
+}
+
+function extractFirstInt(text) {
+  const m = String(text || "").match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
 }
 
 // ===== Core DM flow =====
@@ -199,8 +255,9 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
 
   logEvent("200", `Started MGE session for user ${userId}`);
 
+  let dmChannel;
+
   try {
-    let dmChannel;
     try {
       dmChannel = await user.createDM();
     } catch {
@@ -265,48 +322,93 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
       return answerMsg;
     }
 
-    // Collect answers
+    // ===== Collect answers (with branching) =====
     const answers = {};
 
     let response = await askQuestion(localeTexts[lang].askProfile, true);
-    if (!response) throw { code: 101, message: "Timeout on profile screenshot." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.PROFILE, "askProfile");
     answers.profileScreenshot = response.attachments.first();
 
     response = await askQuestion(localeTexts[lang].askCommander, true);
-    if (!response) throw { code: 101, message: "Timeout on commander screenshot." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.COMMANDER, "askCommander");
     answers.commanderScreenshot = response.attachments.first();
 
     response = await askQuestion(localeTexts[lang].askEquipment, true);
-    if (!response) throw { code: 101, message: "Timeout on equipment screenshot." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.EQUIPMENT, "askEquipment");
     answers.equipmentScreenshot = response.attachments.first();
 
     response = await askQuestion(localeTexts[lang].askPlace, false);
-    if (!response) throw { code: 101, message: "Timeout on desired place." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.PLACE, "askPlace");
     answers.place = response.content.trim();
 
+    // Rank rule: TOP-10 (<=10) => ask why deserve
+    {
+      const rankNum = extractFirstInt(answers.place);
+      const needsWhy = rankNum === null ? true : rankNum <= 10;
+      if (needsWhy) {
+        response = await askQuestion(localeTexts[lang].askHighRankWhy, false);
+        if (!response) throw makeTimeoutError(TIMEOUT_CODES.HIGH_RANK_WHY, "askHighRankWhy");
+        answers.highRankWhy = response.content.trim();
+      }
+    }
+
     response = await askQuestion(localeTexts[lang].askVIP, true);
-    if (!response) throw { code: 101, message: "Timeout on VIP screenshot." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.VIP, "askVIP");
     answers.vipScreenshot = response.attachments.first();
 
+    // Crystal Academy: yes/no -> if yes ask details
+    response = await askQuestion(localeTexts[lang].askCrystalDonate, false);
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.CRYSTAL_DONATE, "askCrystalDonate");
+    answers.crystalDonateRaw = response.content.trim();
+
+    {
+      const yn = normalizeYesNo(answers.crystalDonateRaw);
+      const donates = yn === null ? true : yn; // if unclear -> treat as YES to force detail
+      answers.crystalDonates = donates;
+
+      if (donates) {
+        response = await askQuestion(localeTexts[lang].askCrystalSpend, false);
+        if (!response) throw makeTimeoutError(TIMEOUT_CODES.CRYSTAL_SPEND, "askCrystalSpend");
+        answers.crystalSpend = response.content.trim();
+      }
+    }
+
     response = await askQuestion(localeTexts[lang].askHeads, false);
-    if (!response) throw { code: 101, message: "Timeout on heads count." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.HEADS, "askHeads");
     answers.heads = response.content.trim();
 
     response = await askQuestion(localeTexts[lang].askExpertise, false);
-    if (!response) throw { code: 101, message: "Timeout on expertise." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.EXPERTISE, "askExpertise");
     answers.expertise = response.content.trim();
 
+    // Pair: yes/no -> if yes ask skills screenshot
+    response = await askQuestion(localeTexts[lang].askHasPair, false);
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.HAS_PAIR, "askHasPair");
+    answers.hasPairRaw = response.content.trim();
+
+    {
+      const yn = normalizeYesNo(answers.hasPairRaw);
+      const hasPair = yn === null ? false : yn; // if unclear -> treat as NO to avoid extra friction
+      answers.hasPair = hasPair;
+
+      if (hasPair) {
+        response = await askQuestion(localeTexts[lang].askPairSkills, true);
+        if (!response) throw makeTimeoutError(TIMEOUT_CODES.PAIR_SKILLS, "askPairSkills");
+        answers.pairSkillsScreenshot = response.attachments.first();
+      }
+    }
+
     response = await askQuestion(localeTexts[lang].askRules, false);
-    if (!response) throw { code: 101, message: "Timeout on rules." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.RULES, "askRules");
     answers.rules = response.content.trim();
 
     response = await askQuestion(localeTexts[lang].askAltRank, false);
-    if (!response) throw { code: 101, message: "Timeout on alt rank." };
+    if (!response) throw makeTimeoutError(TIMEOUT_CODES.ALTRANK, "askAltRank");
     answers.altRank = response.content.trim();
 
+    // ===== Build embed for admins =====
     logEvent("201", `Collected all answers from user ${userId}. Preparing embed...`);
 
-    // Build embed for admins
     const embed = new EmbedBuilder()
       .setTitle(lang === "ua" ? "🏅 Нова заявка MGE" : "🏅 New MGE Application")
       .setColor(0x2ecc71)
@@ -325,16 +427,30 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     addImageField("Equipment Screenshot", answers.equipmentScreenshot);
     addImageField("VIP Screenshot", answers.vipScreenshot);
 
+    if (answers.pairSkillsScreenshot) {
+      addImageField("Pair Commander Skills Screenshot", answers.pairSkillsScreenshot);
+    }
+
     embed.addFields(
       { name: "Desired Rank", value: answers.place || "N/A", inline: true },
       { name: "Golden Heads", value: answers.heads || "N/A", inline: true },
       { name: "Can Expertise?", value: answers.expertise || "N/A", inline: true },
       { name: "Accepts Rules?", value: answers.rules || "N/A", inline: true },
-      { name: "Wants if lower rank?", value: answers.altRank || "N/A", inline: true }
+      { name: "Wants if lower rank?", value: answers.altRank || "N/A", inline: true },
+      { name: "Crystal Academy Spend?", value: answers.crystalDonates ? "Yes" : "No", inline: true },
+      { name: "Has Pair?", value: answers.hasPair ? "Yes" : "No", inline: true }
     );
 
+    if (answers.crystalDonates) {
+      embed.addFields({ name: "Crystal Spend Details", value: answers.crystalSpend || "N/A", inline: false });
+    }
+
+    if (answers.highRankWhy) {
+      embed.addFields({ name: "Why TOP-10?", value: answers.highRankWhy, inline: false });
+    }
+
     const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
-    if (!adminChannel) throw { code: 102, message: "Admin channel not found/fetch failed." };
+    if (!adminChannel) throw { code: 900, message: "Admin channel not found/fetch failed." };
 
     await adminChannel.send({ embeds: [embed], files: filesToAttach });
     logEvent("202", `Sent application embed to admin channel for user ${userId}.`);
@@ -342,13 +458,30 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     const thanks = await dmChannel.send(localeTexts[lang].thankYou);
     setTimeout(() => thanks.delete().catch(() => {}), QUESTION_TTL_MS);
   } catch (err) {
-    if (err && err.code === 101) {
-      logEvent("101", `Session timed out for user ${userId} - ${err.message || "No response"}`);
+    if (err && err.type === "TIMEOUT") {
+      logEvent(String(err.code), `Session timed out for user ${userId} at ${err.stepLabel}`);
+
+      // Notify admin where user timed out (optional, but useful)
+      try {
+        const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
+        if (adminChannel) {
+          const timeoutEmbed = new EmbedBuilder()
+            .setTitle("⏳ MGE application timeout")
+            .setColor(0xe67e22)
+            .addFields(
+              { name: "User", value: `${user.tag} (${user.id})`, inline: false },
+              { name: "Step", value: err.stepLabel, inline: true },
+              { name: "Code", value: String(err.code), inline: true }
+            );
+          await adminChannel.send({ embeds: [timeoutEmbed] });
+        }
+      } catch {}
+
       try {
         await user.send(localeTexts[lang].timeoutMsg);
       } catch {}
-    } else if (err && err.code === 102) {
-      logEvent("102", `Failed to send embed for user ${userId} - ${err.message || err}`);
+    } else if (err && err.code === 900) {
+      logEvent("900", `Failed to send embed for user ${userId} - ${err.message || err}`);
       try {
         await user.send(localeTexts[lang].dmError);
       } catch {}
@@ -409,7 +542,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const channel = interaction.channel;
     const payload = buildPanelMessage();
 
-    // Try to find existing panel and edit it (single panel, no spam)
     const existing = await findExistingPanelMessage(channel);
     if (existing) {
       await existing.edit(payload).catch(() => {});
