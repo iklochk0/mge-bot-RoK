@@ -9,6 +9,7 @@
 //      * Rank: if TOP-10 (<=10) -> ask "why deserve".
 //      * Pair: if yes -> ask screenshot of pair commander SKILLS.
 //  - Panel is edited if already exists (no spam).
+//  - FIX: /mgepanel uses deferReply + editReply to avoid "Program not responding".
 
 const {
   Client,
@@ -180,7 +181,12 @@ function buildPanelMessage() {
   const panelEmbed = new EmbedBuilder()
     .setTitle("🏅 MGE Application")
     .setDescription(
-      "Click the button below to start your application.\n"
+      [
+        "**UA:** Натисніть кнопку нижче, щоб подати заявку. Бот напише вам у DM і задасть кілька питань.",
+        "**EN:** Click the button below to apply. The bot will DM you and ask a few questions.",
+        "",
+        "⚠️ Якщо бот не може написати вам у DM — увімкніть приватні повідомлення з цього серверу.",
+      ].join("\n")
     )
     .setColor(0x5865f2);
 
@@ -210,7 +216,12 @@ async function findExistingPanelMessage(channel) {
 }
 
 function makeTimeoutError(code, stepLabel) {
-  return { code, type: "TIMEOUT", stepLabel, message: `Timeout at step: ${stepLabel}` };
+  return {
+    code,
+    type: "TIMEOUT",
+    stepLabel,
+    message: `Timeout at step: ${stepLabel}`,
+  };
 }
 
 function normalizeYesNo(text) {
@@ -248,7 +259,6 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     return;
   }
 
-  // start session + set cooldown immediately (prevents spam clicking)
   activeSessions.add(userId);
   cooldownUntil.set(userId, now + COOLDOWN_MS);
 
@@ -441,7 +451,11 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     );
 
     if (answers.crystalDonates) {
-      embed.addFields({ name: "Crystal Spend Details", value: answers.crystalSpend || "N/A", inline: false });
+      embed.addFields({
+        name: "Crystal Spend Details",
+        value: answers.crystalSpend || "N/A",
+        inline: false,
+      });
     }
 
     if (answers.highRankWhy) {
@@ -460,7 +474,7 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     if (err && err.type === "TIMEOUT") {
       logEvent(String(err.code), `Session timed out for user ${userId} at ${err.stepLabel}`);
 
-      // Notify admin where user timed out (optional, but useful)
+      // Notify admin where user timed out
       try {
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
         if (adminChannel) {
@@ -525,16 +539,16 @@ client.once(Events.ClientReady, async () => {
 client.on(Events.InteractionCreate, async (interaction) => {
   // Admin command: /mgepanel
   if (interaction.isChatInputCommand() && interaction.commandName === "mgepanel") {
+    // IMPORTANT: respond within 3 seconds
+    await interaction.deferReply({ ephemeral: true });
+
     if (interaction.channelId !== ALLOWED_PANEL_CHANNEL_ID) {
-      await interaction.reply({
-        content: `❌ Use this command only in <#${ALLOWED_PANEL_CHANNEL_ID}>.`,
-        ephemeral: true,
-      });
+      await interaction.editReply(`❌ Use this command only in <#${ALLOWED_PANEL_CHANNEL_ID}>.`);
       return;
     }
 
     if (!isAdminAllowed(interaction)) {
-      await interaction.reply({ content: "❌ No permission.", ephemeral: true });
+      await interaction.editReply("❌ No permission.");
       return;
     }
 
@@ -544,12 +558,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const existing = await findExistingPanelMessage(channel);
     if (existing) {
       await existing.edit(payload).catch(() => {});
-      await interaction.reply({ content: "✅ Panel refreshed (edited).", ephemeral: true });
+      await interaction.editReply("✅ Panel refreshed (edited).");
       return;
     }
 
     await channel.send(payload);
-    await interaction.reply({ content: "✅ Panel posted.", ephemeral: true });
+    await interaction.editReply("✅ Panel posted.");
     return;
   }
 
