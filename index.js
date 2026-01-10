@@ -182,10 +182,7 @@ function buildPanelMessage() {
     .setTitle("🏅 MGE Application")
     .setDescription(
       [
-        "**UA:** Натисніть кнопку нижче, щоб подати заявку. Бот напише вам у DM і задасть кілька питань.",
-        "**EN:** Click the button below to apply. The bot will DM you and ask a few questions.",
-        "",
-        "⚠️ Якщо бот не може написати вам у DM — увімкніть приватні повідомлення з цього серверу.",
+        "Click the button below to apply. The bot will DM you and ask a few questions."
       ].join("\n")
     )
     .setColor(0x5865f2);
