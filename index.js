@@ -180,8 +180,7 @@ function buildPanelMessage() {
   const panelEmbed = new EmbedBuilder()
     .setTitle("🏅 MGE Application")
     .setDescription(
-      "Click the button below to start your application.\n\n" +
-        "Натисніть кнопку нижче, щоб почати заявку."
+      "Click the button below to start your application.\n"
     )
     .setColor(0x5865f2);
 
