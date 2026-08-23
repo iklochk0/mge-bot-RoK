@@ -26,6 +26,8 @@ const {
 
 require("dotenv").config();
 
+const { getSurveyLanguage } = require("./survey-language");
+
 // ===== ENV =====
 const TOKEN = process.env.TOKEN;
 const ADMIN_CHANNEL_ID = process.env.ADMIN_CHANNEL_ID;
@@ -237,9 +239,7 @@ function extractFirstInt(text) {
 async function runMgeFlow({ user, locale, replyEphemeral }) {
   const userId = user.id;
 
-  // language
-  let lang = "en";
-  if ((locale || "").startsWith("uk")) lang = "ua";
+  const lang = getSurveyLanguage(locale);
 
   // active session block
   if (activeSessions.has(userId)) {
