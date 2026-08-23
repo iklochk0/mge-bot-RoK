@@ -239,7 +239,10 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
 
   // language
   let lang = "en";
-  if ((locale || "").startsWith("uk")) lang = "ua";
+  const discordLocale = String(locale || "").toLowerCase();
+  if (discordLocale.startsWith("uk") || discordLocale.startsWith("ru")) {
+    lang = "ua";
+  }
 
   // active session block
   if (activeSessions.has(userId)) {
