@@ -26,6 +26,14 @@ const {
 
 require("dotenv").config();
 
+const {
+  extractFirstInt,
+  isCannotSendDmError,
+  limitEmbedValue,
+  normalizeYesNo,
+  resolveLanguage,
+} = require("./src/helpers");
+
 // ===== ENV =====
 const TOKEN = process.env.TOKEN;
 const ADMIN_CHANNEL_ID = process.env.ADMIN_CHANNEL_ID;
@@ -221,28 +229,12 @@ function makeTimeoutError(code, stepLabel) {
   };
 }
 
-function normalizeYesNo(text) {
-  const t = String(text || "").trim().toLowerCase();
-  if (["так", "да", "y", "yes", "true", "1"].includes(t)) return true;
-  if (["ні", "нет", "no", "n", "false", "0"].includes(t)) return false;
-  return null;
-}
-
-function extractFirstInt(text) {
-  const m = String(text || "").match(/\d+/);
-  return m ? parseInt(m[0], 10) : null;
-}
-
 // ===== Core DM flow =====
 async function runMgeFlow({ user, locale, replyEphemeral }) {
   const userId = user.id;
 
   // language
-  let lang = "en";
-  const discordLocale = String(locale || "").toLowerCase();
-  if (discordLocale.startsWith("uk") || discordLocale.startsWith("ru")) {
-    lang = "ua";
-  }
+  const lang = resolveLanguage(locale);
 
   // active session block
   if (activeSessions.has(userId)) {
@@ -284,51 +276,45 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     setTimeout(() => introMsg.delete().catch(() => {}), QUESTION_TTL_MS);
 
     async function askQuestion(questionText, expectImage) {
-      const questionMsg = await dmChannel.send(questionText);
-      setTimeout(() => questionMsg.delete().catch(() => {}), QUESTION_TTL_MS);
+      while (true) {
+        const questionMsg = await dmChannel.send(questionText);
+        setTimeout(() => questionMsg.delete().catch(() => {}), QUESTION_TTL_MS);
 
-      const reply = await dmChannel.awaitMessages({
-        filter: (m) => m.author.id === userId,
-        max: 1,
-        time: TIMEOUT_MS,
-      });
+        const reply = await dmChannel.awaitMessages({
+          filter: (m) => m.author.id === userId,
+          max: 1,
+          time: TIMEOUT_MS,
+        });
 
-      if (!reply.size) return null;
+        if (!reply.size) return null;
 
-      const answerMsg = reply.first();
+        const answerMsg = reply.first();
 
-      if (expectImage) {
-        if (answerMsg.attachments.size === 0) {
+        if (expectImage) {
+          const attachment = answerMsg.attachments.first();
+          const isImage =
+            attachment &&
+            ((attachment.contentType && attachment.contentType.startsWith("image")) ||
+              /\.(png|jpe?g|webp|gif)$/i.test(attachment.name || ""));
+
+          if (isImage) return answerMsg;
+
           const warn = await dmChannel.send(localeTexts[lang].invalidImage);
           setTimeout(() => warn.delete().catch(() => {}), QUESTION_TTL_MS);
-          try { await answerMsg.delete(); } catch {}
-          return await askQuestion(questionText, expectImage);
+          try {
+            await answerMsg.delete();
+          } catch {}
+          continue;
         }
 
-        const attachment = answerMsg.attachments.first();
-        const isImage =
-          (attachment.contentType && attachment.contentType.startsWith("image")) ||
-          /\.(png|jpe?g|webp|gif)$/i.test(attachment.name || "");
+        if (answerMsg.attachments.size === 0) return answerMsg;
 
-        if (!isImage) {
-          const warn = await dmChannel.send(localeTexts[lang].invalidImage);
-          setTimeout(() => warn.delete().catch(() => {}), QUESTION_TTL_MS);
-          try { await answerMsg.delete(); } catch {}
-          return await askQuestion(questionText, expectImage);
-        }
-
-        return answerMsg;
-      }
-
-      // expect text
-      if (answerMsg.attachments.size > 0) {
         const warn = await dmChannel.send(localeTexts[lang].invalidText);
         setTimeout(() => warn.delete().catch(() => {}), QUESTION_TTL_MS);
-        try { await answerMsg.delete(); } catch {}
-        return await askQuestion(questionText, expectImage);
+        try {
+          await answerMsg.delete();
+        } catch {}
       }
-
-      return answerMsg;
     }
 
     // ===== Collect answers (with branching) =====
@@ -426,7 +412,8 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     const filesToAttach = [];
 
     function addImageField(fieldName, attachment) {
-      const fileName = attachment.name || "screenshot.png";
+      const originalName = attachment.name || "screenshot.png";
+      const fileName = `${filesToAttach.length + 1}-${originalName}`;
       filesToAttach.push(new AttachmentBuilder(attachment.url, { name: fileName }));
       embed.addFields({ name: fieldName, value: `📎 ${fileName}`, inline: false });
     }
@@ -441,11 +428,11 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     }
 
     embed.addFields(
-      { name: "Desired Rank", value: answers.place || "N/A", inline: true },
-      { name: "Golden Heads", value: answers.heads || "N/A", inline: true },
-      { name: "Can Expertise?", value: answers.expertise || "N/A", inline: true },
-      { name: "Accepts Rules?", value: answers.rules || "N/A", inline: true },
-      { name: "Wants if lower rank?", value: answers.altRank || "N/A", inline: true },
+      { name: "Desired Rank", value: limitEmbedValue(answers.place), inline: true },
+      { name: "Golden Heads", value: limitEmbedValue(answers.heads), inline: true },
+      { name: "Can Expertise?", value: limitEmbedValue(answers.expertise), inline: true },
+      { name: "Accepts Rules?", value: limitEmbedValue(answers.rules), inline: true },
+      { name: "Wants if lower rank?", value: limitEmbedValue(answers.altRank), inline: true },
       { name: "Crystal Academy Spend?", value: answers.crystalDonates ? "Yes" : "No", inline: true },
       { name: "Has Pair?", value: answers.hasPair ? "Yes" : "No", inline: true }
     );
@@ -453,17 +440,23 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
     if (answers.crystalDonates) {
       embed.addFields({
         name: "Crystal Spend Details",
-        value: answers.crystalSpend || "N/A",
+        value: limitEmbedValue(answers.crystalSpend),
         inline: false,
       });
     }
 
     if (answers.highRankWhy) {
-      embed.addFields({ name: "Why TOP-10?", value: answers.highRankWhy, inline: false });
+      embed.addFields({
+        name: "Why TOP-10?",
+        value: limitEmbedValue(answers.highRankWhy),
+        inline: false,
+      });
     }
 
     const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
-    if (!adminChannel) throw { code: 900, message: "Admin channel not found/fetch failed." };
+    if (!adminChannel?.isTextBased() || typeof adminChannel.send !== "function") {
+      throw { code: 900, message: "Admin channel not found or is not text-based." };
+    }
 
     await adminChannel.send({ embeds: [embed], files: filesToAttach });
     logEvent("202", `Sent application embed to admin channel for user ${userId}.`);
@@ -498,8 +491,11 @@ async function runMgeFlow({ user, locale, replyEphemeral }) {
       try {
         await user.send(localeTexts[lang].dmError);
       } catch {}
-    } else if (err && err.message === "Cannot send messages to this user") {
-      logEvent("100", `Cannot DM user ${userId}. Possibly has DMs closed.`);
+    } else if (isCannotSendDmError(err)) {
+      logEvent(
+        "100",
+        `Cannot DM user ${userId}. DMs may be closed or there is no mutual guild.`
+      );
     } else {
       console.error("Unexpected error in MGE flow:", err);
       logEvent("ERROR", `Unexpected error for user ${userId}: ${err?.message || err}`);
@@ -517,7 +513,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`✅ Bot logged in as ${client.user.tag}`);
 
   const panelChannel = await client.channels.fetch(ALLOWED_PANEL_CHANNEL_ID).catch(() => null);
-  if (!panelChannel || !panelChannel.guild) {
+  if (!panelChannel?.isTextBased() || !panelChannel.guild) {
     console.error("❌ ALLOWED_PANEL_CHANNEL_ID is invalid or not a guild text channel.");
     return;
   }
@@ -588,5 +584,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 });
+
+let isShuttingDown = false;
+
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logEvent("SHUTDOWN", `Received ${signal}. Disconnecting from Discord...`);
+  await client.destroy();
+  process.exit(0);
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
 
 client.login(TOKEN);
